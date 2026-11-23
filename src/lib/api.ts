@@ -45,7 +45,7 @@ export function dbError(error: { code?: string; message: string } | null): never
   if (error.code === "23503") throw new ApiError(400, "ข้อมูลอ้างอิงไม่ถูกต้อง");
   if (error.code === "PGRST116") throw new ApiError(404, "ไม่พบข้อมูล");
   console.error("[db]", error);
-  throw new ApiError(500, "บันทึกข้อมูลไม่สำเร็จ");
+  throw new ApiError(500, `บันทึกข้อมูลไม่สำเร็จ (${error.code ?? "db"}: ${error.message})`.slice(0, 200));
 }
 
 export async function readJson(req: Request): Promise<unknown> {
