@@ -237,13 +237,18 @@ function parseTime(lines: string[], dateLine: number): Field<string> {
 // Reference number
 // ---------------------------------------------------------------------------
 const REF_LABEL =
-  /(เลขที่รายการ|รหัสอ้างอิง|เลขอ้างอิง|หมายเลขอ้างอิง|เลขที่อ้างอิง|รหัสรายการ|รหัสธุรกรรม|หมายเลขรายการ|ref(?:erence)?\.?\s*(?:no|id|code)?\.?|transaction\s*(?:id|no\.?|ref)|trans(?:action)?\.?\s*id)/i;
+  /(เลขที่รายการ|รหัสอ้าง[อฮ]ิง|เลขอ้าง[อฮ]ิง|หมายเลขอ้าง[อฮ]ิง|เลขที่อ้าง[อฮ]ิง|รหัสรายการ|รหัสธุรกรรม|หมายเลขรายการ|ref(?:erence)?\.?\s*(?:no|id|code)?\.?|transaction\s*(?:id|no\.?|ref)|trans(?:action)?\.?\s*id)/i;
+// "รหัสอ้างอิง 2" / "Ref 1" on bill payments are biller/customer codes, not the transaction reference
+const REF_ORDINAL = /^\s*[12](?![\d.,])\s+/;
 
 function parseReference(lines: string[], sq: string[]): Field<string> {
+  let secondary: string | null = null;
   for (let i = 0; i < lines.length; i++) {
     const m = REF_LABEL.exec(sq[i]);
     if (!m) continue;
-    const rest = sq[i].slice((m.index ?? 0) + m[0].length);
+    let rest = sq[i].slice((m.index ?? 0) + m[0].length);
+    const ordinal = REF_ORDINAL.test(rest);
+    if (ordinal) rest = rest.replace(REF_ORDINAL, " ");
     const pick = (s: string) => {
       const compact = s.replace(/[:：#]/g, " ").trim();
       // tokens may be split by OCR spaces: join runs of alnum groups
@@ -252,9 +257,11 @@ function parseReference(lines: string[], sq: string[]): Field<string> {
       return tok && /\d/.test(tok[0]) ? tok[0] : null;
     };
     const v = pick(rest) ?? pick(sq[i + 1] ?? "");
-    if (v) return field(v, 0.85);
+    if (!v) continue;
+    if (!ordinal) return field(v, 0.85);
+    secondary ??= v;
   }
-  return missing();
+  return secondary ? field(secondary, 0.5) : missing();
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +274,17 @@ const PERSON_PREFIX =
 const ACCOUNT_LINE = /(?:x{2,}|\*{2,}|\d{3}-\d-\d{5}-\d|(?:\d[\s-]?){8,})/i;
 const NOT_NAME =
   /(สำเร็จ|successful|ธนาคาร|bank|จำนวน|amount|ค่าธรรมเนียม|fee|เลขที่|รหัส|ref|วันที่|date|บาท|พร้อมเพย์|promptpay|scan|สแกน|qr|ตรวจสอบ|บันทึกช่วยจำ|memo|note)/i;
+
+// Icons next to names are often read as stray digits / quotes: "10 น.ส.สมหญิง"
+const LEAD_NOISE = /^(?:[\s0-9"'“”‘’*.,:;|()\-_~]+|\S{1,2}\s+)(?=[฀-๿A-Za-z])/;
+function stripLead(s: string): string {
+  return s.replace(LEAD_NOISE, "");
+}
+
+function isBankLine(s: string): boolean {
+  const t = s.replace(/^ธ\.|^ธนาคาร/, "").trim();
+  return t.length <= 25 && detectBanks(s).length > 0 && !PERSON_PREFIX.test(stripLead(s));
+}
 
 function cleanName(s: string): string | null {
   const v = s
@@ -310,22 +328,44 @@ function parseNames(lines: string[], sq: string[]): { sender: Field<string>; rec
 
   if (sender.value === null || receiver.value === null) {
     // Positional fallback: first name-like line = sender, second = receiver (typical slip layout).
-    const people: string[] = [];
+    const people: { name: string; line: number }[] = [];
     for (let i = 0; i < lines.length; i++) {
-      if (!PERSON_PREFIX.test(lines[i]) || NOT_NAME.test(sq[i])) continue;
-      const c = cleanName(lines[i]);
-      if (c && c !== sender.value && c !== receiver.value) people.push(c);
+      const l = stripLead(lines[i]);
+      if (!PERSON_PREFIX.test(l) || NOT_NAME.test(squash(l))) continue;
+      const c = cleanName(l);
+      if (c && c !== sender.value && c !== receiver.value) people.push({ name: c, line: i });
     }
     if (sender.value === null && receiver.value === null) {
-      if (people[0]) sender = field(people[0], 0.55);
-      if (people[1]) receiver = field(people[1], 0.55);
+      if (people[0]) sender = field(people[0].name, 0.55);
+      if (people[1]) receiver = field(people[1].name, 0.55);
+      // Unlabelled layout (e.g. Krungthai): name / bank / account, then the payee block.
+      if (people[0] && !people[1]) {
+        const r = payeeAfter(lines, sq, people[0].line);
+        if (r) receiver = field(r, 0.45);
+      }
     } else if (sender.value === null && people[0]) {
-      sender = field(people[0], 0.5);
+      sender = field(people[0].name, 0.5);
     } else if (receiver.value === null && people[0]) {
-      receiver = field(people[0], 0.5);
+      receiver = field(people[0].name, 0.5);
     }
   }
   return { sender, receiver };
+}
+
+/** First name-like line after the sender's block (skipping its bank and account lines). */
+function payeeAfter(lines: string[], sq: string[], from: number): string | null {
+  let sawAccount = false;
+  for (let j = from + 1; j < Math.min(lines.length, from + 7); j++) {
+    if (AMOUNT_LABEL.test(sq[j]) || REF_LABEL.test(sq[j])) break;
+    if (ACCOUNT_LINE.test(lines[j]) && !/[฀-๿]{3,}/.test(lines[j])) {
+      sawAccount = true;
+      continue;
+    }
+    if (!sawAccount || isBankLine(lines[j]) || NOT_NAME.test(sq[j])) continue;
+    const c = cleanName(lines[j].replace(/^[\s"'“”*.,:;|()\-_~]+/, ""));
+    if (c && /[฀-๿A-Za-z]{3,}/.test(c)) return c;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
