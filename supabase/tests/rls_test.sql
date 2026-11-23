@@ -6,7 +6,7 @@ insert into auth.users values ('00000000-0000-0000-0000-00000000000a', 'a@exampl
                               ('00000000-0000-0000-0000-00000000000b', 'b@example.com');
 
 do $$ begin
-  assert (select count(*) from public.categories where user_id = '00000000-0000-0000-0000-00000000000a') = 16,
+  assert (select count(*) from public.categories where user_id = '00000000-0000-0000-0000-00000000000a') = 23,
     'default categories seeded';
   assert (select count(*) from public.profiles) = 2, 'profiles created';
 end $$;
@@ -17,10 +17,10 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a
 
 insert into public.transactions (user_id, type, amount, transaction_date, category_id, reference_number)
 select auth.uid(), 'expense', 120.50, '2026-11-20', id, 'REF123456'
-from public.categories where name = 'อาหารและเครื่องดื่ม' and type = 'expense';
+from public.categories where name = 'อาหาร/รับรองลูกค้า' and type = 'expense';
 
 do $$ begin
-  assert (select count(*) from public.categories) = 16, 'A sees only own categories';
+  assert (select count(*) from public.categories) = 23, 'A sees only own categories';
   assert (select count(*) from public.profiles) = 1, 'A sees only own profile';
 end $$;
 
@@ -77,7 +77,7 @@ do $$ declare a_cat uuid; begin
 end $$;
 
 -- deleting a category keeps the transaction, clears category
-delete from public.categories where user_id = '00000000-0000-0000-0000-00000000000a' and name = 'อาหารและเครื่องดื่ม';
+delete from public.categories where user_id = '00000000-0000-0000-0000-00000000000a' and name = 'อาหาร/รับรองลูกค้า';
 do $$ begin
   assert (select category_id from public.transactions limit 1) is null, 'category set null';
   assert (select user_id from public.transactions limit 1) is not null, 'user kept';

@@ -7,10 +7,10 @@ import { toCsv } from "@/lib/csv";
 import { maskAccount } from "@/lib/utils";
 
 const cats = [
-  { id: "food", name: "อาหารและเครื่องดื่ม", color: "#F97316", type: "expense" as const },
-  { id: "travel", name: "เดินทาง", color: "#0EA5E9", type: "expense" as const },
+  { id: "food", name: "อาหาร/รับรองลูกค้า", color: "#F97316", type: "expense" as const },
+  { id: "travel", name: "ค่าเดินทาง/น้ำมัน", color: "#0EA5E9", type: "expense" as const },
   { id: "other", name: "อื่น ๆ", color: "#64748B", type: "expense" as const },
-  { id: "salary", name: "เงินเดือน", color: "#16A34A", type: "income" as const },
+  { id: "salary", name: "ยอดขายสินค้า", color: "#16A34A", type: "income" as const },
 ];
 
 describe("summarize", () => {
@@ -31,7 +31,7 @@ describe("summarize", () => {
     expect(s.count).toBe(5);
   });
   it("finds the top category and percentages", () => {
-    expect(s.topExpenseCategory?.name).toBe("เดินทาง");
+    expect(s.topExpenseCategory?.name).toBe("ค่าเดินทาง/น้ำมัน");
     expect(s.expenseByCategory.map((c) => c.percent).reduce((a, b) => a + b, 0)).toBeCloseTo(100, 0);
   });
   it("creates one bucket per day of the range", () => {
@@ -123,5 +123,23 @@ describe("misc", () => {
   });
   it("masks account numbers", () => {
     expect(maskAccount("บัญชี 123-4-56789-0")).toBe("บัญชี xxxxxx7890");
+  });
+});
+
+describe("office categories", () => {
+  const names = ["ซื้อสินค้า/วัตถุดิบ", "ค่าขนส่ง/ค่าส่งของ", "บรรจุภัณฑ์", "ค่าธรรมเนียมแพลตฟอร์ม", "ค่าโฆษณา/การตลาด", "ค่าอินเทอร์เน็ต/โทรศัพท์", "ซอฟต์แวร์/บริการออนไลน์", "อื่น ๆ"];
+  const oc = names.map((name) => ({ id: name, name, type: "expense" as const }));
+  const inc = ["เงินโอนจากแพลตฟอร์ม", "อื่น ๆ"].map((name) => ({ id: name, name, type: "income" as const }));
+  const pick = (m: string, type: "expense" | "income" = "expense") =>
+    suggestCategory({ merchant: m, type, categories: type === "expense" ? oc : inc }).categoryName;
+  it("suggests office categories from merchant names", () => {
+    expect(pick("Flash Express")).toBe("ค่าขนส่ง/ค่าส่งของ");
+    expect(pick("ร้านกล่องพัสดุ")).toBe("บรรจุภัณฑ์");
+    expect(pick("Facebook Ads")).toBe("ค่าโฆษณา/การตลาด");
+    expect(pick("TikTok Shop Seller")).toBe("ค่าธรรมเนียมแพลตฟอร์ม");
+    expect(pick("1688.com")).toBe("ซื้อสินค้า/วัตถุดิบ");
+    expect(pick("AIS")).toBe("ค่าอินเทอร์เน็ต/โทรศัพท์");
+    expect(pick("Canva")).toBe("ซอฟต์แวร์/บริการออนไลน์");
+    expect(pick("Shopee", "income")).toBe("เงินโอนจากแพลตฟอร์ม");
   });
 });

@@ -41,7 +41,7 @@ npm run dev            # เปิด http://localhost:3000
 ### ตั้งค่า Supabase (ครั้งเดียว)
 
 1. สมัคร/เข้าสู่ระบบที่ https://supabase.com แล้วกด **New project** (เลือก Region: Singapore)
-2. ไปที่ **SQL Editor** → วางเนื้อหาไฟล์ `supabase/migrations/0001_init.sql` ทั้งหมด → กด **Run** แล้วทำแบบเดียวกันกับ `0002_import_key.sql` และ `0003_grants.sql` (ตามลำดับ)
+2. ไปที่ **SQL Editor** → วางเนื้อหาไฟล์ `supabase/migrations/0001_init.sql` ทั้งหมด → กด **Run** แล้วทำแบบเดียวกันกับ `0002_import_key.sql` , `0003_grants.sql` และ `0004_office_categories.sql` (ตามลำดับ)
    (สร้างตาราง, RLS, หมวดหมู่เริ่มต้นสำหรับผู้ใช้ใหม่, และ bucket รูปสลิปแบบ private)
 3. ไปที่ **Project Settings → API** คัดลอก `Project URL` และ `anon public key` ใส่ใน `.env.local`
 4. ไปที่ **Authentication → URL Configuration**

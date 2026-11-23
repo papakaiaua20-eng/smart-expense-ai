@@ -159,8 +159,25 @@ export const POST = withUser(async ({ req, supabase, user }) => {
   const t = parsed.suggestedType.value;
   const catType = t === "income" ? "income" : "expense";
   const counterparty = t === "income" ? parsed.senderName.value : parsed.receiverName.value;
-  const category =
+  let category =
     t === "transfer" ? null : suggestCategory({ merchant: counterparty, type: catType, categories, rules });
+  // Payee unknown (e.g. "123 เซอร์วิส" bill counter): try the slip memo, then the customer-name line
+  if (category && category.confidence <= 0.2) {
+    const lines = text.replace(/ํา/g, "ำ").split("\n").map((l) => l.replace(/\s+/g, " "));
+    const grab = (re: RegExp) => lines.map((l) => re.exec(l)?.[1]?.trim()).find(Boolean);
+    const candidates = [
+      grab(/(?:บันทึกช่วยจำ|บันทึก|memo|note)\s*[:：]?\s*(.+)/i),
+      grab(/(?:รหัสลูกค้า|ชื่อลูกค้า)\s*[:：]?\s*(.+)/i),
+    ];
+    for (const extra of candidates) {
+      if (!extra) continue;
+      const alt = suggestCategory({ merchant: extra, type: catType, categories, rules });
+      if (alt.confidence > category.confidence) {
+        category = { ...alt, confidence: 0.5, reason: `เดาจากข้อความบนสลิป "${extra.slice(0, 40)}"` };
+        break;
+      }
+    }
+  }
 
   const status = !readable ? "failed" : parsed.needsReview ? "needs_review" : "success";
   const maskedText = maskAccount(text) ?? "";

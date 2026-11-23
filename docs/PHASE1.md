@@ -48,7 +48,7 @@ storage.buckets: receipts (private, 5 MB, jpeg/png/webp), path = <user_id>/<uuid
 - Unique: `(user_id, reference_number, amount)` เมื่อมีเลขอ้างอิง → กันบันทึกซ้ำระดับฐานข้อมูล
 - Unique งบ `(user_id, category_id, period)` แบบ `NULLS NOT DISTINCT`
 - RLS เปิดทุกตาราง policy `user_id = auth.uid()`, Storage policy ตามโฟลเดอร์ user id
-- Trigger สร้าง profile + หมวดเริ่มต้น 16 หมวด + notification settings ให้ผู้ใช้ใหม่
+- Trigger สร้าง profile + หมวดเริ่มต้นสำหรับออฟฟิศ 23 หมวด (migration 0004) + notification settings ให้ผู้ใช้ใหม่
 
 ## 3. Data Flow
 

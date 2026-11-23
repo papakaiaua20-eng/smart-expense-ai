@@ -19,20 +19,31 @@ export function normalizeMerchant(name: string): string {
     .trim();
 }
 
-// keyword -> default category name (must match names seeded in the migration)
+// keyword -> default category name (must match names seeded in migration 0004_office_categories)
+// Order matters: the first match wins (e.g. ads before platform, grab food before grab).
 const KEYWORDS: { re: RegExp; name: string; type: CategoryType }[] = [
-  { re: /(7-?eleven|เซเว่น|ข้าว|อาหาร|กาแฟ|coffee|cafe|คาเฟ่|ก๋วยเตี๋ยว|ชาบู|หมูกระทะ|ส้มตำ|starbucks|amazon\s*cafe|kfc|mcdonald|แมคโดนัลด์|pizza|พิซซ่า|swensen|mk\s*restaurant|bonchon|after\s*you|ชานม|bakery|เบเกอรี่|grab\s*food|lineman|line\s*man|foodpanda|robinhood|shopeefood)/i, name: "อาหารและเครื่องดื่ม", type: "expense" },
-  { re: /(grab(?!\s*food)|bolt|taxi|แท็กซี่|bts|mrt|รถไฟฟ้า|airport\s*rail|ปตท|ptt|shell|เชลล์|bangchak|บางจาก|caltex|คาลเท็กซ์|esso|pt\s*station|น้ำมัน|ทางด่วน|easy\s*pass|m-?flow|ที่จอดรถ|parking|airasia|nok\s*air|thai\s*airways|การบินไทย|รถทัวร์|ขนส่ง)/i, name: "เดินทาง", type: "expense" },
-  { re: /(shopee(?!\s*food)|lazada|central|เซ็นทรัล|robinson|โรบินสัน|uniqlo|h&m|zara|lotus|โลตัส|big\s*c|บิ๊กซี|makro|แม็คโคร|tops|ท็อปส์|villa\s*market|watsons|วัตสัน|boots|eveandboy|power\s*buy|banana|advice|ikea|homepro|โฮมโปร|thai\s*watsadu|ไทวัสดุ|global\s*house|tiktok\s*shop|amazon)/i, name: "ช้อปปิ้ง", type: "expense" },
-  { re: /(ค่าเช่า|ค่าห้อง|หอพัก|คอนโด|condo|apartment|อพาร์ทเม้นท์|นิติบุคคล|ค่าส่วนกลาง|บ้าน)/i, name: "บ้านและที่อยู่อาศัย", type: "expense" },
-  { re: /(การไฟฟ้า|ไฟฟ้า|pea|mea|การประปา|ประปา|pwa|mwa|true\s*(online|move|internet)?|ทรู|ais|เอไอเอส|dtac|ดีแทค|3bb|nt\s|tot|อินเทอร์เน็ต|internet|fiber|ไฟเบอร์)/i, name: "ค่าน้ำ ค่าไฟ อินเทอร์เน็ต", type: "expense" },
-  { re: /(โรงพยาบาล|hospital|คลินิก|clinic|ร้านยา|pharmacy|ฟาร์มาซี|ทันตกรรม|dental|fitness|ฟิตเนส|gym|ยิม|ประกันสุขภาพ)/i, name: "สุขภาพ", type: "expense" },
-  { re: /(โรงเรียน|school|มหาวิทยาลัย|university|ค่าเทอม|tuition|course|คอร์ส|udemy|coursera|skooldio|หนังสือ|book|se-ed|ซีเอ็ด|นายอินทร์|kinokuniya)/i, name: "การศึกษา", type: "expense" },
-  { re: /(netflix|spotify|youtube|disney|hbo|viu|wetv|apple\.com|itunes|google\s*play|steam|playstation|nintendo|major|เมเจอร์|sf\s*cinema|เอสเอฟ|cinema|โรงหนัง|คอนเสิร์ต|concert|ticket|บัตรคอนเสิร์ต|karaoke|คาราโอเกะ)/i, name: "ความบันเทิง", type: "expense" },
-  { re: /(ผ่อน|สินเชื่อ|loan|บัตรเครดิต|credit\s*card|ktc|aeon|อิออน|first\s*choice|เฟิร์สช้อยส์|cardx|umay|ยูเมะ|ไฟแนนซ์|finance|leasing|ลีสซิ่ง|ประกัน|insurance)/i, name: "ผ่อนชำระและหนี้สิน", type: "expense" },
-  { re: /(เงินเดือน|salary|payroll)/i, name: "เงินเดือน", type: "income" },
-  { re: /(คอมมิชชั่น|คอมมิชชัน|commission)/i, name: "ค่าคอมมิชชัน", type: "income" },
-  { re: /(คืนเงิน|เงินคืน|refund|cashback|แคชแบ็ก)/i, name: "เงินคืน", type: "income" },
+  // ---- expense ----
+  { re: /(โฆษณา|facebook|meta\s*(platforms|ads)?|fb\s*ads|google\s*ads|tiktok\s*ads|ads\s*manager|line\s*(oa|official)|บูสต์|boost|influencer|อินฟลู|รีวิว|การตลาด|marketing)/i, name: "ค่าโฆษณา/การตลาด", type: "expense" },
+  { re: /(tiktok|shopee(?!\s*food)|lazada|line\s*shopping|ค่าธรรมเนียมการขาย|commission\s*fee|seller)/i, name: "ค่าธรรมเนียมแพลตฟอร์ม", type: "expense" },
+  { re: /(flash\s*express|แฟลช|kerry|เคอรี่|kex|j\s*&\s*t|เจแอนด์ที|ไปรษณีย์|thailand\s*post|ems|best\s*express|ninja\s*van|dhl|fedex|scg\s*express|lalamove|ลาล่ามูฟ|grab\s*express|nim\s*express|นิ่มเอ็กซ์เพรส|ขนส่ง|ส่งของ|ค่าส่ง|shipping)/i, name: "ค่าขนส่ง/ค่าส่งของ", type: "expense" },
+  { re: /(กล่อง|box|เทป|tape|บับเบิ้ล|บับเบิล|bubble|ซองไปรษณีย์|ซองพลาสติก|packaging|แพ็คเกจจิ้ง|บรรจุภัณฑ์|สติกเกอร์|sticker|ฉลาก)/i, name: "บรรจุภัณฑ์", type: "expense" },
+  { re: /(เงินเดือน|ค่าจ้าง|ค่าแรง|ค่าคอม|คอมมิชชั่น|คอมมิชชัน|commission|salary|payroll|โบนัส|bonus|พนักงาน|ฟรีแลนซ์|freelance)/i, name: "เงินเดือน/ค่าจ้าง/คอมมิชชัน", type: "expense" },
+  { re: /(ค่าเช่า|โกดัง|warehouse|สำนักงาน|office\s*rent|นิติบุคคล|ค่าส่วนกลาง|คอนโด|อพาร์ทเม้นท์)/i, name: "ค่าเช่าสำนักงาน/โกดัง", type: "expense" },
+  { re: /(การไฟฟ้า|ไฟฟ้า|pea|mea|การประปา|ประปา|pwa|mwa|ค่าน้ำ|ค่าไฟ)/i, name: "ค่าน้ำ ค่าไฟ", type: "expense" },
+  { re: /(true\s*(online|move|internet)?|ทรู|ais|เอไอเอส|dtac|ดีแทค|3bb|nt\s|tot|อินเทอร์เน็ต|internet|fiber|ไฟเบอร์|โทรศัพท์|มือถือ|เติมเงิน)/i, name: "ค่าอินเทอร์เน็ต/โทรศัพท์", type: "expense" },
+  { re: /(officemate|ออฟฟิศเมท|b2s|เครื่องเขียน|กระดาษ|หมึก|ink|toner|ปากกา|แฟ้ม|เครื่องพิมพ์|printer|วัสดุสำนักงาน|อุปกรณ์สำนักงาน|ไทวัสดุ|thai\s*watsadu|homepro|โฮมโปร|ikea|ดีโฟร์ยู|power\s*buy|banana|advice|jib)/i, name: "อุปกรณ์สำนักงาน/เครื่องเขียน", type: "expense" },
+  { re: /(canva|google\s*(workspace|one|cloud)|microsoft|office\s*365|adobe|chatgpt|openai|notion|zoom|capcut|apple\.com|icloud|hosting|โฮสติ้ง|domain|โดเมน|software|ซอฟต์แวร์|subscription|netflix|spotify|youtube)/i, name: "ซอฟต์แวร์/บริการออนไลน์", type: "expense" },
+  { re: /(ซ่อม|ช่าง|repair|service\s*center|ทำความสะอาด|แม่บ้าน|cleaning|ล้างแอร์|บำรุง)/i, name: "ซ่อมบำรุง", type: "expense" },
+  { re: /(grab(?!\s*(food|express))|bolt|taxi|แท็กซี่|bts|mrt|รถไฟฟ้า|airport\s*rail|ปตท|ptt|shell|เชลล์|bangchak|บางจาก|caltex|คาลเท็กซ์|esso|pt\s*station|น้ำมัน|ทางด่วน|easy\s*pass|m-?flow|ที่จอดรถ|parking|airasia|nok\s*air|thai\s*airways|การบินไทย|รถทัวร์|ค่าเดินทาง)/i, name: "ค่าเดินทาง/น้ำมัน", type: "expense" },
+  { re: /(7-?eleven|เซเว่น|ข้าว|อาหาร|กาแฟ|coffee|cafe|คาเฟ่|ก๋วยเตี๋ยว|ชาบู|หมูกระทะ|ส้มตำ|starbucks|amazon\s*cafe|kfc|mcdonald|แมคโดนัลด์|pizza|พิซซ่า|swensen|mk\s*restaurant|bonchon|after\s*you|ชานม|bakery|เบเกอรี่|grab\s*food|lineman|line\s*man|foodpanda|robinhood|shopeefood|น้ำดื่ม|เลี้ยง)/i, name: "อาหาร/รับรองลูกค้า", type: "expense" },
+  { re: /(สรรพากร|ภาษี|vat|ภ\.?ง\.?ด|ประกันสังคม|กรมพัฒนาธุรกิจ|dbd|ค่าปรับ|อากร|ราชการ|เทศบาล|อบต)/i, name: "ภาษี/ค่าธรรมเนียมราชการ", type: "expense" },
+  { re: /(ค่าธรรมเนียมธนาคาร|ค่าธรรมเนียม|bank\s*fee|ค่าบริการธนาคาร|ค่ารักษาบัญชี)/i, name: "ค่าธรรมเนียมธนาคาร", type: "expense" },
+  { re: /(1688|taobao|เถาเป่า|alibaba|aliexpress|makro|แม็คโคร|โรงงาน|ขายส่ง|wholesale|วัตถุดิบ|สต็อก|stock|ซัพพลายเออร์|supplier|lotus|โลตัส|big\s*c|บิ๊กซี|tops|ท็อปส์)/i, name: "ซื้อสินค้า/วัตถุดิบ", type: "expense" },
+  // ---- income ----
+  { re: /(tiktok|shopee|lazada|line\s*shopping|payout|ถอนเงินจากร้าน|seller)/i, name: "เงินโอนจากแพลตฟอร์ม", type: "income" },
+  { re: /(ดอกเบี้ย|interest|เงินคืน|คืนเงิน|refund|cashback|แคชแบ็ก)/i, name: "ดอกเบี้ย/รายได้อื่น", type: "income" },
+  { re: /(ลงทุน|เพิ่มทุน|investment|capital|เงินทุน)/i, name: "เงินลงทุน/เงินทุนเพิ่ม", type: "income" },
+  { re: /(ค่าบริการ|service|ค่าจ้างงาน|ค่าออกแบบ|ค่าที่ปรึกษา)/i, name: "รายได้ค่าบริการ", type: "income" },
 ];
 
 export function suggestCategory(input: {
