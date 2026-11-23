@@ -7,63 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/app/page-header";
-import { emptyForm, TransactionForm, type FieldFlags, type FormValues } from "@/components/app/transaction-form";
+import { TransactionForm } from "@/components/app/transaction-form";
 import { api, ApiClientError, useApi } from "@/lib/fetcher";
 import { cn, formatTHB, formatThaiDate } from "@/lib/utils";
-import type { ParsedSlip } from "@/lib/slip/parser";
 import type { Category, Transaction } from "@/lib/types";
 import { ACCEPTED, prepareImage, readQr } from "./image-utils";
-
-type ScanResp = {
-  receipt_id: string;
-  status: "success" | "needs_review" | "failed" | "not_configured";
-  message: string | null;
-  provider?: string;
-  raw_text?: string;
-  parsed: ParsedSlip | null;
-  category?: { categoryId: string | null; confidence: number; reason: string } | null;
-  counterparty?: string | null;
-  duplicate: { level: string; reason: string | null; matches: { id: string; amount: string | number; transaction_date: string; merchant_name: string | null }[] } | null;
-};
-
-type ProfileResp = {
-  profile: { account_names: string[]; ocr_consent_at: string | null };
-  ocr: { id: string; label: string; external: boolean } | null;
-};
-
-type Stage = "pick" | "preview" | "scanning" | "review" | "saved";
-
-const STEPS = ["ตรวจสอบไฟล์", "อ่านข้อความ (OCR)", "แยกข้อมูลธุรกรรม", "ตรวจรายการซ้ำ", "เสนอหมวดหมู่"];
-
-function toForm(r: ScanResp): { values: FormValues; flags: FieldFlags } {
-  const p = r.parsed;
-  const v = emptyForm("expense");
-  if (!p) return { values: { ...v, type: "" }, flags: {} };
-  const kindPm = p.kind.value === "transfer" ? "โอนผ่านธนาคาร" : "";
-  return {
-    values: {
-      ...v,
-      type: p.suggestedType.value ?? "",
-      amount: p.amount.value !== null ? p.amount.value.toFixed(2) : "",
-      transaction_date: p.date.value ?? "",
-      transaction_time: p.time.value ?? "",
-      category_id: r.category?.categoryId ?? "",
-      merchant_name: r.counterparty ?? "",
-      payment_method: kindPm,
-      bank: p.bank.value ?? "",
-      reference_number: p.reference.value ?? "",
-    },
-    flags: {
-      type: p.suggestedType.status,
-      amount: p.amount.status,
-      transaction_date: p.date.status,
-      transaction_time: p.time.status,
-      bank: p.bank.status,
-      reference_number: p.reference.status,
-      merchant_name: r.counterparty ? (p.suggestedType.value === "income" ? p.senderName.status : p.receiverName.status) : "missing",
-    },
-  };
-}
+import { STEPS, toForm, type ProfileResp, type ScanResp, type Stage } from "./scan-shared";
+import { BatchScan, MAX_BATCH } from "./batch-scan";
 
 export function ScanView() {
   const [stage, setStage] = useState<Stage>("pick");
@@ -75,6 +25,7 @@ export function ScanView() {
   const [saved, setSaved] = useState<Transaction | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [batch, setBatch] = useState<File[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const camRef = useRef<HTMLInputElement>(null);
 
@@ -92,8 +43,22 @@ export function ScanView() {
     setResult(null);
     setError(null);
     setSaved(null);
+    setBatch(null);
     if (fileRef.current) fileRef.current.value = "";
     if (camRef.current) camRef.current.value = "";
+  }
+
+  function onFiles(list: FileList | null | undefined) {
+    const files = Array.from(list ?? []);
+    if (files.length > 1) {
+      setError(null);
+      const ok = files.filter((f) => ACCEPTED.includes(f.type) || /\.(jpe?g|png|webp)$/i.test(f.name));
+      if (ok.length === 0) return setError("รองรับเฉพาะไฟล์ JPG, PNG หรือ WEBP");
+      if (ok.length < files.length) toast.warning(`ข้าม ${files.length - ok.length} ไฟล์ที่ไม่ใช่รูป JPG/PNG/WEBP`);
+      setBatch(ok);
+      return;
+    }
+    void onFile(files[0]);
   }
 
   async function onFile(f: File | undefined | null) {
@@ -171,7 +136,21 @@ export function ScanView() {
         </div>
       )}
 
-      {stage === "saved" && saved ? (
+      {batch && needsConsent && (
+        <div className="mb-4 rounded-xl border border-border bg-slate-50 p-3 text-sm">
+          <p className="flex items-center gap-2 font-medium">
+            <ShieldCheck className="size-4 text-primary" /> ขอความยินยอมก่อนอ่านสลิป
+          </p>
+          <p className="mt-1 text-muted">ระบบจะส่งรูปสลิปไปยัง {profile.data?.ocr?.label} เพื่ออ่านข้อความเท่านั้น</p>
+          <Button size="sm" className="mt-3" loading={consentBusy} onClick={giveConsent}>
+            ยินยอมและดำเนินการต่อ
+          </Button>
+        </div>
+      )}
+
+      {batch ? (
+        <BatchScan files={batch} categories={cats.data?.items ?? []} blocked={!profile.data || needsConsent} onExit={reset} />
+      ) : stage === "saved" && saved ? (
         <Card className="mx-auto max-w-md p-6 text-center">
           <CheckCircle2 className="mx-auto size-12 text-income" />
           <h2 className="mt-3 text-lg font-semibold">บันทึกรายการแล้ว</h2>
@@ -192,7 +171,7 @@ export function ScanView() {
           <Card>
             <CardHeader>
               <CardTitle>รูปสลิป</CardTitle>
-              <CardDescription>JPG, PNG หรือ WEBP ไม่เกิน 5 MB</CardDescription>
+              <CardDescription>JPG, PNG หรือ WEBP · รูปใหญ่ระบบจะย่อให้อัตโนมัติ</CardDescription>
             </CardHeader>
             <CardContent>
               {stage === "pick" ? (
@@ -205,7 +184,7 @@ export function ScanView() {
                   onDrop={(e) => {
                     e.preventDefault();
                     setDragging(false);
-                    void onFile(e.dataTransfer.files?.[0]);
+                    onFiles(e.dataTransfer.files);
                   }}
                   className={cn(
                     "flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border px-4 py-10 text-center",
@@ -213,10 +192,10 @@ export function ScanView() {
                   )}
                 >
                   <ImageUp className="size-10 text-slate-300" aria-hidden />
-                  <p className="text-sm text-muted">ลากรูปมาวาง หรือเลือกจากเครื่อง</p>
+                  <p className="text-sm text-muted">ลากรูปมาวาง หรือเลือกจากเครื่อง เลือกได้หลายรูปพร้อมกัน (สูงสุด {MAX_BATCH} รูป)</p>
                   <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                     <Button onClick={() => fileRef.current?.click()}>
-                      <ImageUp /> เลือกรูปสลิป
+                      <ImageUp /> เลือกรูปสลิป (ได้หลายรูป)
                     </Button>
                     <Button variant="outline" onClick={() => camRef.current?.click()}>
                       <Camera /> ถ่ายรูป
@@ -229,7 +208,7 @@ export function ScanView() {
                   <img src={preview} alt="ตัวอย่างรูปสลิป" className="mx-auto max-h-[28rem] w-auto max-w-full rounded-xl border border-border object-contain" />
                 )
               )}
-              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => onFile(e.target.files?.[0])} />
+              <input ref={fileRef} type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => onFiles(e.target.files)} />
               <input ref={camRef} type="file" accept="image/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => onFile(e.target.files?.[0])} />
 
               {error && (
