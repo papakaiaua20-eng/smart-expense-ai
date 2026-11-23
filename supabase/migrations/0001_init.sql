@@ -53,6 +53,7 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+drop trigger if exists profiles_updated_at on public.profiles;
 create trigger profiles_updated_at before update on public.profiles
   for each row execute function public.set_updated_at();
 
@@ -130,6 +131,7 @@ create table if not exists public.transactions (
   check (type <> 'transfer' or category_id is null)
 );
 
+drop trigger if exists transactions_updated_at on public.transactions;
 create trigger transactions_updated_at before update on public.transactions
   for each row execute function public.set_updated_at();
 
@@ -159,6 +161,7 @@ create table if not exists public.budgets (
   foreign key (category_id, user_id) references public.categories (id, user_id) on delete cascade
 );
 
+drop trigger if exists budgets_updated_at on public.budgets;
 create trigger budgets_updated_at before update on public.budgets
   for each row execute function public.set_updated_at();
 
@@ -201,30 +204,37 @@ alter table public.budgets enable row level security;
 alter table public.merchant_rules enable row level security;
 alter table public.notification_settings enable row level security;
 
+drop policy if exists "own profile" on public.profiles;
 create policy "own profile" on public.profiles
   for all to authenticated
   using (id = (select auth.uid())) with check (id = (select auth.uid()));
 
+drop policy if exists "own categories" on public.categories;
 create policy "own categories" on public.categories
   for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
+drop policy if exists "own receipts" on public.receipts;
 create policy "own receipts" on public.receipts
   for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
+drop policy if exists "own transactions" on public.transactions;
 create policy "own transactions" on public.transactions
   for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
+drop policy if exists "own budgets" on public.budgets;
 create policy "own budgets" on public.budgets
   for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
+drop policy if exists "own merchant rules" on public.merchant_rules;
 create policy "own merchant rules" on public.merchant_rules
   for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
+drop policy if exists "own notification settings" on public.notification_settings;
 create policy "own notification settings" on public.notification_settings
   for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
@@ -293,14 +303,17 @@ on conflict (id) do update
       file_size_limit = excluded.file_size_limit,
       allowed_mime_types = excluded.allowed_mime_types;
 
+drop policy if exists "receipts: owner can read" on storage.objects;
 create policy "receipts: owner can read" on storage.objects
   for select to authenticated
   using (bucket_id = 'receipts' and (storage.foldername(name))[1] = (select auth.uid())::text);
 
+drop policy if exists "receipts: owner can upload" on storage.objects;
 create policy "receipts: owner can upload" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'receipts' and (storage.foldername(name))[1] = (select auth.uid())::text);
 
+drop policy if exists "receipts: owner can delete" on storage.objects;
 create policy "receipts: owner can delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'receipts' and (storage.foldername(name))[1] = (select auth.uid())::text);
