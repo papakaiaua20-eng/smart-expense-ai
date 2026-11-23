@@ -1,6 +1,5 @@
 -- Run after supabase_stub.sql + migrations. Fails loudly if isolation breaks.
 \set ON_ERROR_STOP on
-grant select, insert, update, delete on all tables in schema public to authenticated;
 grant select, insert, delete on storage.objects to authenticated;
 
 insert into auth.users values ('00000000-0000-0000-0000-00000000000a', 'a@example.com'),
