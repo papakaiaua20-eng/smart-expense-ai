@@ -2,7 +2,8 @@
 import jsQR from "jsqr";
 
 export const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
-export const MAX_BYTES = 5 * 1024 * 1024;
+// Vercel rejects request bodies over 4.5 MB before our code runs, so keep uploads well under it.
+export const MAX_BYTES = 4 * 1024 * 1024;
 
 function loadImage(file: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -57,5 +58,5 @@ export async function prepareImage(file: File): Promise<File> {
     const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, "image/jpeg", q));
     if (blob && blob.size <= MAX_BYTES) return new File([blob], "slip.jpg", { type: "image/jpeg" });
   }
-  throw new Error("รูปใหญ่เกินไป กรุณาใช้รูปที่เล็กกว่า 5 MB");
+  throw new Error("รูปใหญ่เกินไป กรุณาใช้รูปที่เล็กกว่า 4 MB");
 }

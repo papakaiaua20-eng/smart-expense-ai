@@ -28,7 +28,7 @@ export async function api<T = unknown>(url: string, init?: RequestInit & { json?
   if (res.status === 401 && typeof window !== "undefined") {
     window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
   }
-  if (!res.ok) throw new ApiClientError(res.status, body?.error ?? "เกิดข้อผิดพลาด", body);
+  if (!res.ok) throw new ApiClientError(res.status, body?.error ?? fallbackMessage(res.status), body);
   return body as T;
 }
 
@@ -59,4 +59,10 @@ export function useApi<T>(url: string | null) {
   }, [load]);
 
   return { data, error, loading, reload: load, setData };
+}
+
+function fallbackMessage(status: number) {
+  if (status === 413) return "ไฟล์ใหญ่เกินไป กรุณาใช้รูปที่เล็กลง (413)";
+  if (status === 504) return "เซิร์ฟเวอร์ใช้เวลานานเกินไป กรุณาลองใหม่ (504)";
+  return `เกิดข้อผิดพลาด (${status})`;
 }

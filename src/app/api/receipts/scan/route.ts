@@ -81,7 +81,7 @@ export const POST = withUser(async ({ req, supabase, user }) => {
   const up = await supabase.storage.from("receipts").upload(storagePath, buf, { contentType: mime, upsert: false });
   if (up.error) {
     console.error("[scan] upload", up.error);
-    throw new ApiError(500, "อัปโหลดรูปไม่สำเร็จ");
+    throw new ApiError(500, `อัปโหลดรูปไม่สำเร็จ: ${up.error.message}`.slice(0, 200));
   }
 
   const { data: receipt, error: recErr } = await supabase
